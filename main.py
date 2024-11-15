@@ -65,7 +65,7 @@ for message in st.session_state.chat_history:
     st.write(f"**You:** {message['human']}")
     st.write(f"**Chatbot:** {message['AI']}")
 
-if st.button("Reset"):
+if st.button("NewChat"):
     st.session_state.chat_history = []
     st.session_state.memory = ConversationBufferWindowMemory(
         memory_key="chat_history", 
