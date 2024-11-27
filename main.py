@@ -25,10 +25,22 @@ prompt = PromptTemplate(input_variables=["input", "chat_history"], template=prom
 # Initialize the LLM chain
 llm_chain = LLMChain(llm=llm, prompt=prompt, memory=memory)
 
-# Function to process input from a file
+# Function to process input from a file (either PDF or text file)
 def process_file(file):
     try:
-        return file.read().decode("utf-8")
+        # For PDF files, we'll extract text content here (you can use PyPDF2 or pdfplumber for PDF text extraction)
+        if file.type == "application/pdf":
+            import PyPDF2
+            reader = PyPDF2.PdfReader(file)
+            text = ""
+            for page in reader.pages:
+                text += page.extract_text()
+            return text
+        # For text files, simply read the content
+        elif file.type == "text/plain":
+            return file.read().decode("utf-8")
+        else:
+            return "Unsupported file type"
     except Exception as e:
         return f"Error reading the file: {str(e)}"
 
@@ -38,14 +50,14 @@ def chatbot_ui():
 
     # Sidebar for instructions
     st.sidebar.title("AI Chatbot")
-    st.sidebar.write("Ask questions or upload a PDF file to query content!")
+    st.sidebar.write("Upload a file (PDF or text) and ask questions!")
 
     # Main UI
     st.title("AI Chatbot")
-    st.write("Ask a question or upload a file for context-based answers.")
+    st.write("Upload a file and ask questions based on its content!")
     st.markdown("---")
 
-    # Chat history
+    # Chat history state
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
     if "file_content" not in st.session_state:
@@ -57,7 +69,7 @@ def chatbot_ui():
 
     st.markdown("---")
 
-    # File uploader and text input at the bottom
+    # File upload button and text input box at the bottom
     col1, col2 = st.columns([3, 1])
     with col1:
         st.markdown("###")
@@ -65,11 +77,12 @@ def chatbot_ui():
     with col2:
         question = st.text_input("Ask a question:", key="user_input", label_visibility="collapsed")
 
-    # Process file if uploaded
+    # Button to process file
     if uploaded_file:
-        st.session_state.file_content = process_file(uploaded_file)
-        st.session_state.chat_history.append("**Uploaded file processed!**")
-        st.success("File content successfully processed. Ask a question based on it.")
+        file_content = process_file(uploaded_file)
+        st.session_state.file_content = file_content
+        st.session_state.chat_history.append("**File uploaded successfully!**")
+        st.success("File content successfully uploaded. You can now ask questions based on the content.")
 
     # Process question
     if question:
@@ -89,7 +102,6 @@ def chatbot_ui():
 
         # Clear the input box
         st.session_state.user_input = ""  # Reset the input field without rerunning
-        st.experimental_rerun()
 
 if __name__ == "__main__":
     chatbot_ui()
