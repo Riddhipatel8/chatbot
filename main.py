@@ -48,6 +48,8 @@ def chatbot_ui():
     # Chat history
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
+    if "file_content" not in st.session_state:
+        st.session_state.file_content = None
 
     # Display chat history
     for chat in st.session_state.chat_history:
@@ -64,15 +66,14 @@ def chatbot_ui():
         question = st.text_input("Ask a question:", key="user_input", label_visibility="collapsed")
 
     # Process file if uploaded
-    file_content = None
     if uploaded_file:
-        file_content = process_file(uploaded_file)
+        st.session_state.file_content = process_file(uploaded_file)
         st.session_state.chat_history.append("**Uploaded file processed!**")
         st.success("File content successfully processed. Ask a question based on it.")
 
     # Process question
     if question:
-        context = file_content if file_content else ""
+        context = st.session_state.file_content if st.session_state.file_content else ""
         full_input = f"{context}\n\n{question}" if context else question
 
         # Generate the model's response
@@ -86,7 +87,8 @@ def chatbot_ui():
         st.session_state.chat_history.append(f"**You:** {question}")
         st.session_state.chat_history.append(f"**AI:** {ai_response}")
 
-        # Clear input box
+        # Clear the input box
+        st.session_state.user_input = ""  # Reset the input field without rerunning
         st.experimental_rerun()
 
 if __name__ == "__main__":
