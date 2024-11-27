@@ -61,7 +61,7 @@ def chatbot_ui():
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
     if "file_content" not in st.session_state:
-        st.session_state.file_content = None
+        st.session_state.file_content = []
 
     # Display chat history
     for chat in st.session_state.chat_history:
