@@ -1,145 +1,93 @@
 import streamlit as st
-import os
-from langchain.chains import LLMChain
-from langchain_core.prompts import (
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-    MessagesPlaceholder,
-)
-from langchain_core.messages import SystemMessage
-from langchain.chains.conversation.memory import ConversationBufferWindowMemory
 from langchain_groq import ChatGroq
-from dotenv import load_dotenv
+from langchain.memory import ConversationBufferMemory
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+import os
 
-load_dotenv()
-
-groq_api_key = os.getenv('GROQ_API_KEY')
-
-# Title of the app
-st.title("Chat with Groq!")
-st.write("Hello! I'm your friendly Groq chatbot. I can help answer your questions, provide information, or just chat. Let's start our conversation!")
-
-# CSS for styling
-st.markdown(
-    """
-    <style>
-    .chat-bubble-user {
-        background-color: #DCF8C6;
-        padding: 10px;
-        border-radius: 10px;
-        margin-bottom: 10px;
-        max-width: 60%;
-        margin-left: auto;
-        word-wrap: break-word;
-    }
-    .chat-bubble-ai {
-        background-color: #E4E6EB;
-        padding: 10px;
-        border-radius: 10px;
-        margin-bottom: 10px;
-        max-width: 60%;
-        margin-right: auto;
-        word-wrap: break-word;
-    }
-    .chat-container {
-        height: 400px;
-        overflow-y: scroll;
-        padding-right: 10px;
-        margin-bottom: 20px;
-        border: 1px solid #ddd;
-        border-radius: 10px;
-        background-color: #F9F9F9;
-        padding-left: 10px;
-    }
-    .user-input {
-        width: 100%;
-        padding: 12px;
-        border: 1px solid #ddd;
-        border-radius: 10px;
-        margin-top: 10px;
-    }
-    .new-chat-button {
-        width: 100%;
-        padding: 12px;
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 10px;
-        cursor: pointer;
-    }
-    .new-chat-button:hover {
-        background-color: #45a049;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
+# Initialize the LLM
+groq_api_key = os.getenv("GROQ_API_KEY")  # Replace with your actual API key or environment variable
+llm = ChatGroq(
+    groq_api_key=groq_api_key,
+    model_name="llama-3.1-70b-versatile"  # Adjust model name as required
 )
 
-# Initialize session state for chat history and memory
-if 'chat_history' not in st.session_state:
-    st.session_state.chat_history = []
-if 'memory' not in st.session_state:
-    st.session_state.memory = ConversationBufferWindowMemory(
-        memory_key="chat_history", 
-        return_messages=True
-    )
+# Initialize memory to store the conversation history
+memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
-# Create a chat container
-st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+# Define the conversation prompt
+prompt_template = """
+Human: {input}
+AI: {chat_history}
+"""
+prompt = PromptTemplate(input_variables=["input", "chat_history"], template=prompt_template)
 
-# Display the chat history
-for message in st.session_state.chat_history:
-    if message["AI"]:
-        st.markdown(f'<div class="chat-bubble-ai">{message["AI"]}</div>', unsafe_allow_html=True)
-    if message["human"]:
-        st.markdown(f'<div class="chat-bubble-user">{message["human"]}</div>', unsafe_allow_html=True)
+# Initialize the LLM chain
+llm_chain = LLMChain(llm=llm, prompt=prompt, memory=memory)
 
-# Close the chat container
-st.markdown('</div>', unsafe_allow_html=True)
+# Function to process input from a file
+def process_file(file):
+    try:
+        return file.read().decode("utf-8")
+    except Exception as e:
+        return f"Error reading the file: {str(e)}"
 
-# Text input field for user question
-user_question = st.text_input("Ask a question:", key="user_input", placeholder="Type your message here...")
+# Streamlit UI
+def chatbot_ui():
+    st.set_page_config(page_title="AI Chatbot", layout="wide")
 
-groq_chat = ChatGroq(
-    groq_api_key=groq_api_key, 
-    model_name="llama-3.1-8b-instant"
-)
+    # Sidebar for instructions
+    st.sidebar.title("AI Chatbot")
+    st.sidebar.write("Ask questions or upload a PDF file to query content!")
 
-if user_question:
-    # Save previous interactions to memory
-    memory = st.session_state.memory
-    for message in st.session_state.chat_history:
-        memory.save_context(
-            {"input": message["human"]},
-            {"output": message["AI"]}
-        )
-    
-    prompt = ChatPromptTemplate.from_messages(
-        [ 
-            MessagesPlaceholder(variable_name="chat_history"),  # Placeholder for chat history
-            HumanMessagePromptTemplate.from_template("{human_input}"),  # Template for user input
-        ]
-    )
+    # Main UI
+    st.title("AI Chatbot")
+    st.write("Ask a question or upload a file for context-based answers.")
+    st.markdown("---")
 
-    conversation = LLMChain(
-        llm=groq_chat,  # Groq LangChain chat object
-        prompt=prompt,  # Constructed prompt template
-        verbose=True,   # Enables verbose output
-        memory=memory,  # Conversational memory object
-    )
+    # Chat history
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
 
-    response = conversation.predict(human_input=user_question)
-    message = {"human": user_question, "AI": response}
-    st.session_state.chat_history.append(message)
+    # Display chat history
+    for chat in st.session_state.chat_history:
+        st.markdown(chat)
 
-    # Display the new chatbot response
-    st.markdown(f'<div class="chat-bubble-ai">{response}</div>', unsafe_allow_html=True)
+    st.markdown("---")
 
-# New chat button
-if st.button("New Chat", key="new_chat", help="Reset the chat history and start a new conversation"):
-    st.session_state.chat_history = []
-    st.session_state.memory = ConversationBufferWindowMemory(
-        memory_key="chat_history", 
-        return_messages=True
-    )
-    st.write("Session reset successfully!")
+    # File uploader and text input at the bottom
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.markdown("###")
+        uploaded_file = st.file_uploader("Upload a PDF or text file:", type=["pdf", "txt"], label_visibility="collapsed")
+    with col2:
+        question = st.text_input("Ask a question:", key="user_input", label_visibility="collapsed")
+
+    # Process file if uploaded
+    file_content = None
+    if uploaded_file:
+        file_content = process_file(uploaded_file)
+        st.session_state.chat_history.append("**Uploaded file processed!**")
+        st.success("File content successfully processed. Ask a question based on it.")
+
+    # Process question
+    if question:
+        context = file_content if file_content else ""
+        full_input = f"{context}\n\n{question}" if context else question
+
+        # Generate the model's response
+        chat_history = memory.load_memory_variables({}).get("chat_history", [])
+        response = llm_chain.run(input=full_input, chat_history=chat_history)
+
+        # Extract only the content of the latest AI response
+        ai_response = response.split("AI: ")[-1].strip()
+
+        # Update chat history
+        st.session_state.chat_history.append(f"**You:** {question}")
+        st.session_state.chat_history.append(f"**AI:** {ai_response}")
+
+        # Clear input box
+        st.experimental_rerun()
+
+if __name__ == "__main__":
+    chatbot_ui()
